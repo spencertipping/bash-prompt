@@ -27,6 +27,8 @@ function meter {
 }
 
 function set_ps1 {
+  local exit_code=$?
+
   local left='\[\033[1;32m\]\h\[\033[1;30m\]\W\[\033[0;0m\] '
   local save='\[\033[s\]'
   local load='\[\033[u\]'
@@ -47,6 +49,8 @@ function set_ps1 {
     local amount_empty=$((full_capacity - current_capacity))
     info=" $(meter 33 30 $full_capacity $amount_empty)$info"
   fi
+
+  ((exit_code != 0)) && info=" \[\033[1;31m\]e$exit_code\[\033[0;0m\]$info"
 
   local info_minus_escapes="$(sed 's/\\\[[^]]*\\\]*//g' <<< "$info")"
   local width=${#info_minus_escapes}
