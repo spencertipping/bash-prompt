@@ -35,17 +35,15 @@ function set_ps1 {
   if [[ -d .git ]]; then
     local color=''
     [[ -f .git/index.lock ]] && color=31
-    info="$info \[\033[1;${color:-30}m\]g(\[\033[1;32m\]$(sed 's/.*\///' .git/HEAD | head -c6)\[\033[1;30m\])"
+    info="$info \[\033[1;${color:-30}m\]g\[\033[1;30m\](\[\033[1;32m\]$(sed 's/.*\///' .git/HEAD | head -c6)\[\033[1;30m\])"
   fi
 
-  if [[ -r .test-log ]]; then
-    # A custom format. If present, the number of 'pass' and 'fail' are shown as colored dots.
-    info=" $(meter 32 31 $(grep pass .test-log | wc -l) $(grep fail .test-log | wc -l))$info"
-  fi
+  [[ -r .test-log ]] && info=" $(meter 32 31 $(grep pass .test-log | wc -l) $(grep fail .test-log | wc -l))$info"
+  [[ -r .todo ]]     && info=" \[\033[1;36m\]t$(wc -l < .todo)\[\033[0;0m\]$info"
 
-  if grep charging /proc/acpi/battery/BAT*/state >& /dev/null; then
-    local full_capacity="$(grep full      /proc/acpi/battery/BAT*/info  | tr -s ' ' | cut -d' ' -f 4)"
-    local current_capacity="$(grep remaining /proc/acpi/battery/BAT*/state | tr -s ' ' | cut -d' ' -f 3)"
+  if grep 'charging$' /proc/acpi/battery/BAT1/state >& /dev/null; then
+    local full_capacity="$(grep full /proc/acpi/battery/BAT1/info | awk '{print $4}')"
+    local current_capacity="$(grep remaining /proc/acpi/battery/BAT1/state | awk '{print $3}')"
     local amount_empty=$((full_capacity - current_capacity))
     info=" $(meter 33 30 $full_capacity $amount_empty)$info"
   fi
