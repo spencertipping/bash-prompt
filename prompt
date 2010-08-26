@@ -53,10 +53,11 @@ function set_ps1 {
   ((exit_code != 0)) && info=" \[\033[1;31m\]e$exit_code\[\033[0;0m\]$info"
 
   local info_minus_escapes="$(sed 's/\\\[[^]]*\\\]*//g' <<< "$info")"
+  local info_minus_escape_brackets="$(sed 's/\\[][]//g' <<< "$info")"
   local width=${#info_minus_escapes}
   local position=$((COLUMNS - width))
 
-  export PS1="$left$save\[\033[${position}G\]$info$load\[\033[0;0m\]"
+  export PS1="$left$save\[\033[${position}G\]\[$info_minus_escape_brackets\]$load\[\033[0;0m\]"
 }
 
 export PROMPT_COMMAND=set_ps1
