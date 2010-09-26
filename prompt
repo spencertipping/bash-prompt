@@ -40,7 +40,7 @@ function set_ps1 {
     info="$info \[\033[1;${color:-30}m\]g\[\033[1;30m\](\[\033[1;32m\]$(sed 's/.*\///' .git/HEAD | head -c6)\[\033[1;30m\])"
   fi
 
-  [[ -r .test-log ]] && info=" $(meter 32 31 $(grep pass .test-log | wc -l) $(grep fail .test-log | wc -l))$info"
+  [[ -r .test-log ]] && info=" $(meter 32 31 $(grep '^pass' .test-log | wc -l) $(grep '^fail' .test-log | wc -l))$info"
   [[ -r .todo ]]     && info=" \[\033[1;36m\]t$(wc -l < .todo)\[\033[0;0m\]$info"
 
   if grep 'charging$' /proc/acpi/battery/BAT1/state >& /dev/null; then
