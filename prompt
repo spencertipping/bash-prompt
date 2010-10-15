@@ -51,9 +51,8 @@ function set_ps1 {
   fi
 
   temperature=$(< /sys/devices/virtual/thermal/thermal_zone0/temp)
-  if (( $temperature > 70000 )); then
-    info="\[\033[1;31m\]T${temperature%%000}\[\033[0;0m\] $info"
-  fi
+  temperature_color=$((30 + (temperature > 70000)))
+  info="\[\033[1;${temperature_color}m\]T${temperature%%000}\[\033[0;0m\] $info"
 
   ((exit_code != 0)) && info=" \[\033[1;31m\]e$exit_code\[\033[0;0m\]$info"
 
