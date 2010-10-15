@@ -50,6 +50,11 @@ function set_ps1 {
     info=" $(meter 33 30 $current_capacity $amount_empty)$info"
   fi
 
+  temperature=$(< /sys/devices/virtual/thermal/thermal_zone0/temp)
+  if (( $temperature > 70000 )); then
+    info="\[\033[1;31m\]T${temperature%%000}\[\033[0;0m\] $info"
+  fi
+
   ((exit_code != 0)) && info=" \[\033[1;31m\]e$exit_code\[\033[0;0m\]$info"
 
   local info_minus_escapes="$(sed 's/\\\[[^]]*\\\]*//g' <<< "$info")"
