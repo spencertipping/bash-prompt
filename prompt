@@ -2,6 +2,53 @@
 # Marginally extensible, not very portable Bash prompt | Spencer Tipping
 # Licensed under the terms of the MIT source code license
 
+function setup_left_and_right {
+  # Your customizations go here. The idea is to export $PS1_LEFT and $PS1_RIGHT
+  # as two strings, each formatted like $PS1 normally is. (That is, with \[\]
+  # around escape sequences.)
+
+  local exit_code=$?
+
+  export PS1_LEFT='\[\033[1;32m\]\h\[\033[1;30m\]\W\[\033[0;0m\] '
+  export PS1_RIGHT="$(default_right_prompt $exit_code)"
+}
+
+function default_right_prompt {
+  # I've put the right prompt logic into a separate function since there are
+  # several pieces of data that need to be computed.
+  local exit_code=$1
+
+  if [[ -d .git ]]; then
+    local color=''
+    [[ -f .git/index.lock ]] && color=31
+    info="$info \[\033[1;${color:-30}m\]g\[\033[1;30m\](\[\033[1;32m\]$(sed 's/.*\///' .git/HEAD | head -c6)\[\033[1;30m\])"
+  fi
+
+  [[ -r .test-log ]] && info=" $(meter 32 31 $(grep '^pass' .test-log | wc -l) $(grep '^fail' .test-log | wc -l))$info"
+  [[ -r .todo ]]     && info=" \[\033[1;36m\]t$(wc -l < .todo)\[\033[0;0m\]$info"
+
+  if grep 'charging$' /proc/acpi/battery/BAT1/state >& /dev/null; then
+    local full_capacity="$(grep full /proc/acpi/battery/BAT1/info | awk '{print $4}')"
+    local current_capacity="$(grep remaining /proc/acpi/battery/BAT1/state | awk '{print $3}')"
+    local amount_empty=$((full_capacity - current_capacity))
+    info=" $(meter 33 30 $current_capacity $amount_empty)$info"
+  fi
+
+  ((exit_code != 0)) && info=" \[\033[1;31m\]e$exit_code\[\033[0;0m\]$info"
+  echo -n "$info"
+}
+
+# Meter function.
+# Draws ten dots in two colors. You specify the two color codes and the widths
+# of the pieces relative to each other. For example, you can put this into your
+# PS1_LEFT or PS1_RIGHT:
+#
+# $(meter 32 30 100 200)
+#
+# This will draw a short line of green dots followed by a long line of gray
+# ones. The reason is that 32 is green, 30 is gray, 100 is the first fraction,
+# and 200 is the second fraction. So scaling 300 down to 10, we have about 3
+# green dots and 7 gray ones.
 function meter {
   local color1=$1
   local color2=$2
@@ -26,44 +73,25 @@ function meter {
   fi
 }
 
+# This is where we do all of the crazy sed trickery to figure out where to
+# place the right prompt. Once we get it figured out it's actually easy to
+# render; we just use ANSI escapes to save the cursor position, jump over, draw
+# the right side, and then jump back to where we were.
+#
+# This probably breaks horribly if your terminal doesn't support those escape
+# sequences.
 function set_ps1 {
-  local exit_code=$?
+  setup_left_and_right
 
-  local left='\[\033[1;32m\]\h\[\033[1;30m\]\W\[\033[0;0m\] '
   local save='\[\033[s\]'
   local load='\[\033[u\]'
-  local info=''
 
-  if [[ -d .git ]]; then
-    local color=''
-    [[ -f .git/index.lock ]] && color=31
-    info="$info \[\033[1;${color:-30}m\]g\[\033[1;30m\](\[\033[1;32m\]$(sed 's/.*\///' .git/HEAD | head -c6)\[\033[1;30m\])"
-  fi
-
-  [[ -r .test-log ]] && info=" $(meter 32 31 $(grep '^pass' .test-log | wc -l) $(grep '^fail' .test-log | wc -l))$info"
-  [[ -r .todo ]]     && info=" \[\033[1;36m\]t$(wc -l < .todo)\[\033[0;0m\]$info"
-
-  if grep 'charging$' /proc/acpi/battery/BAT1/state >& /dev/null; then
-    local full_capacity="$(grep full /proc/acpi/battery/BAT1/info | awk '{print $4}')"
-    local current_capacity="$(grep remaining /proc/acpi/battery/BAT1/state | awk '{print $3}')"
-    local amount_empty=$((full_capacity - current_capacity))
-    info=" $(meter 33 30 $current_capacity $amount_empty)$info"
-  fi
-
-  if [[ -e /sys/devices/virtual/thermal/thermal_zone0/temp ]]; then
-    temperature=$(< /sys/devices/virtual/thermal/thermal_zone0/temp)
-    temperature_color=$((30 + (temperature > 70000)))
-    info=" \[\033[1;${temperature_color}m\]T${temperature%%000}\[\033[0;0m\]$info"
-  fi
-
-  ((exit_code != 0)) && info=" \[\033[1;31m\]e$exit_code\[\033[0;0m\]$info"
-
-  local info_minus_escapes="$(sed 's/\\\[[^]]*\\\]*//g' <<< "$info")"
-  local info_minus_escape_brackets="$(sed 's/\\[][]//g' <<< "$info")"
-  local width=${#info_minus_escapes}
+  local right_minus_escapes="$(sed 's/\\\[[^]]*\\\]*//g' <<< "$PS1_RIGHT")"
+  local right_minus_escape_brackets="$(sed 's/\\[][]//g' <<< "$PS1_RIGHT")"
+  local width=${#right_minus_escapes}
   local position=$((COLUMNS - width))
 
-  export PS1="$left$save\[\033[${position}G\]\[$info_minus_escape_brackets\]$load\[\033[0;0m\]"
+  export PS1="$PS1_LEFT$save\[\033[${position}G\]\[$right_minus_escape_brackets\]$load\[\033[0;0m\]"
 }
 
 export PROMPT_COMMAND=set_ps1
