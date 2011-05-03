@@ -10,7 +10,12 @@ function setup_left_and_right {
   local exit_code=$?
 
   export PS1_LEFT='\[\033[1;32m\]\h\[\033[1;30m\]\W\[\033[0;0m\] '
-  export PS1_RIGHT="$(default_right_prompt $exit_code)"
+
+  if [[ $TERM == 'xterm-color' ]]; then
+    export PS1_RIGHT="$(default_right_prompt $exit_code)"
+  else
+    export PS1_RIGHT=''
+  fi
 }
 
 function default_right_prompt {
@@ -91,7 +96,11 @@ function set_ps1 {
   local width=${#right_minus_escapes}
   local position=$((COLUMNS - width))
 
-  export PS1="$PS1_LEFT$save\[\033[${position}G\]\[$right_minus_escape_brackets\]$load\[\033[0;0m\]"
+  if [[ -z "$PS1_RIGHT" ]]; then
+    export PS1="$PS1_LEFT"
+  else
+    export PS1="$PS1_LEFT$save\[\033[${position}G\]\[$right_minus_escape_brackets\]$load\[\033[0;0m\]"
+  fi
 }
 
 export PROMPT_COMMAND=set_ps1
