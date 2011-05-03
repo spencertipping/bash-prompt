@@ -1,5 +1,5 @@
 #!/bin/bash
-# Marginally extensible, not very portable Bash prompt | Spencer Tipping
+# Left/right-handed bash prompt | Spencer Tipping
 # Licensed under the terms of the MIT source code license
 
 function setup_left_and_right {
@@ -7,28 +7,39 @@ function setup_left_and_right {
   # as two strings, each formatted like $PS1 normally is. (That is, with \[\]
   # around escape sequences.)
 
+  # Note that you can't use Bash-specific backslash sequences on the right; if
+  # you do, this script won't know the proper length and your right prompt will
+  # most likely run off the screen.
+
   local exit_code=$?
+  local job_pid=$!
 
   export PS1_LEFT='\[\033[1;32m\]\h\[\033[1;30m\]\W\[\033[0;0m\] '
-
-  if [[ $TERM == 'xterm-color' ]]; then
-    export PS1_RIGHT="$(default_right_prompt $exit_code)"
-  else
-    export PS1_RIGHT=''
-  fi
+  export PS1_RIGHT="$(default_right_prompt "$exit_code" "$job_pid")"
 }
 
 function default_right_prompt {
   # I've put the right prompt logic into a separate function since there are
   # several pieces of data that need to be computed.
   local exit_code=$1
+  local job_pid=$2
+  local info=''
 
-  if [[ -d .git ]]; then
-    local color=''
-    [[ -f .git/index.lock ]] && color=31
-    info="$info \[\033[1;${color:-30}m\]g\[\033[1;30m\](\[\033[1;32m\]$(sed 's/.*\///' .git/HEAD | head -c6)\[\033[1;30m\])"
-  fi
+  info="$(git_status $PWD)"
 
+  # Load average. If it's above 4 we should know about it.
+  local load_average=$(awk '{print $1}' < /proc/loadavg)
+  ((${load_average%.*} >= 4)) && info=" \[\033[1;31m\]L$load_average\[\033[0;0m\]$info"
+
+  # Shell stuff. Show the most recent background job PID if it's still running,
+  # and show the most recent exit status if it wasn't 0. Also show the number
+  # of background jobs.
+  local number_of_jobs=$(jobs | wc -l)
+  ((number_of_jobs != 0))                     && info=" \[\033[1;30m\]j$number_of_jobs\[\033[0;0m\]$info"
+  ((job_pid != 0)) && [[ -d /proc/$job_pid ]] && info=" \[\033[1;35m\]&$job_pid\[\033[0;0m\]$info"
+  ((exit_code != 0))                          && info=" \[\033[1;31m\]e$exit_code\[\033[0;0m\]$info"
+
+  # Look for a couple of dotfiles that might be present.
   [[ -r .test-log ]] && info=" $(meter 32 31 $(grep '^pass' .test-log | wc -l) $(grep '^fail' .test-log | wc -l))$info"
   [[ -r .todo ]]     && info=" \[\033[1;36m\]t$(wc -l < .todo)\[\033[0;0m\]$info"
 
@@ -39,8 +50,18 @@ function default_right_prompt {
     info=" $(meter 33 30 $current_capacity $amount_empty)$info"
   fi
 
-  ((exit_code != 0)) && info=" \[\033[1;31m\]e$exit_code\[\033[0;0m\]$info"
   echo -n "$info"
+}
+
+function git_status {
+  # Current git branch.
+  if [[ -d "$1/.git" ]]; then
+    local color=30
+    [[ -f "$1/.git/index.lock" ]] && color=31
+    echo -n "\[\033[1;${color}m\]g\[\033[1;30m\](\[\033[1;32m\]$(sed 's/.*\///' "$1/.git/HEAD" | head -c6)\[\033[1;30m\])"
+  elif [[ ! -z "$1" ]]; then
+    git_status "${1%/*}"
+  fi
 }
 
 # Meter function.
@@ -80,16 +101,10 @@ function meter {
 
 # This is where we do all of the crazy sed trickery to figure out where to
 # place the right prompt. Once we get it figured out it's actually easy to
-# render; we just use ANSI escapes to save the cursor position, jump over, draw
-# the right side, and then jump back to where we were.
-#
-# This probably breaks horribly if your terminal doesn't support those escape
-# sequences.
+# render; we just draw the right prompt first, then use \r to go all the way to
+# the left, and draw the left prompt.
 function set_ps1 {
   setup_left_and_right
-
-  local save='\[\033[s\]'
-  local load='\[\033[u\]'
 
   local right_minus_escapes="$(sed 's/\\\[[^]]*\\\]*//g' <<< "$PS1_RIGHT")"
   local right_minus_escape_brackets="$(sed 's/\\[][]//g' <<< "$PS1_RIGHT")"
@@ -99,7 +114,7 @@ function set_ps1 {
   if [[ -z "$PS1_RIGHT" ]]; then
     export PS1="$PS1_LEFT"
   else
-    export PS1="$PS1_LEFT$save\[\033[${position}G\]\[$right_minus_escape_brackets\]$load\[\033[0;0m\]"
+    export PS1="\[\033[${position}G$right_minus_escape_brackets\r\]$PS1_LEFT\[\033[0;0m\]"
   fi
 }
 
