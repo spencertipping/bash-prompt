@@ -23,42 +23,44 @@ function default_right_prompt {
   # several pieces of data that need to be computed.
   local exit_code=$1
   local job_pid=$2
-  local info=''
-
-  info="$(git_status $PWD)"
 
   # Load average. If it's above 4 we should know about it.
   local load_average=$(awk '{print $1}' < /proc/loadavg)
-  ((${load_average%.*} >= 4)) && info=" \[\033[1;31m\]L$load_average\[\033[0;0m\]$info"
+  ((${load_average%.*} >= 4)) && local load_average_indicator=" \[\033[1;31m\]L$load_average\[\033[0;0m\]"
 
   # Shell stuff. Show the most recent background job PID if it's still running,
   # and show the most recent exit status if it wasn't 0. Also show the number
   # of background jobs.
   local number_of_jobs=$(jobs | wc -l)
-  ((number_of_jobs != 0))                     && info=" \[\033[1;30m\]j$number_of_jobs\[\033[0;0m\]$info"
-  ((job_pid != 0)) && [[ -d /proc/$job_pid ]] && info=" \[\033[1;35m\]&$job_pid\[\033[0;0m\]$info"
-  ((exit_code != 0))                          && info=" \[\033[1;31m\]e$exit_code\[\033[0;0m\]$info"
+  ((number_of_jobs != 0))                     && local job_status_indicator=" \[\033[1;30m\]j$number_of_jobs\[\033[0;0m\]"
+  ((job_pid != 0)) && [[ -d /proc/$job_pid ]] && local    job_pid_indicator=" \[\033[1;35m\]&$job_pid\[\033[0;0m\]"
+  ((exit_code != 0))                          && local  exit_code_indicator=" \[\033[1;31m\]e$exit_code\[\033[0;0m\]"
 
-  # Look for a couple of dotfiles that might be present.
-  [[ -r .test-log ]] && info=" $(meter 32 31 $(grep '^pass' .test-log | wc -l) $(grep '^fail' .test-log | wc -l))$info"
-  [[ -r .todo ]]     && info=" \[\033[1;36m\]t$(wc -l < .todo)\[\033[0;0m\]$info"
+  # Look for a couple of dotfiles that might be present, and find out which
+  # git branch we're on.
+  local git_branch="$(git_status $PWD)"
+  [[ -z "$git_branch" ]] || local git_branch_indicator=" \[\033[1;30m\]g(\[\033[1;32m\]$git_branch\[\033[1;30m\])"
+  [[ -r .test-log ]]     && local   test_log_indicator=" $(meter 32 31 $(grep '^pass' .test-log | wc -l) $(grep '^fail' .test-log | wc -l))"
+  [[ -r .todo ]]         && local       todo_indicator=" \[\033[1;36m\]t$(wc -l < .todo)\[\033[0;0m\]"
 
   if grep 'charging$' /proc/acpi/battery/BAT1/state >& /dev/null; then
-    local full_capacity="$(grep full /proc/acpi/battery/BAT1/info | awk '{print $4}')"
-    local current_capacity="$(grep remaining /proc/acpi/battery/BAT1/state | awk '{print $3}')"
-    local amount_empty=$((full_capacity - current_capacity))
-    info=" $(meter 33 30 $current_capacity $amount_empty)$info"
+    local     full_capacity="$(grep full /proc/acpi/battery/BAT1/info | awk '{print $4}')"
+    local  current_capacity="$(grep remaining /proc/acpi/battery/BAT1/state | awk '{print $3}')"
+    local      amount_empty=$((full_capacity - current_capacity))
+    local battery_indicator=" $(meter 33 30 $current_capacity $amount_empty)"
   fi
 
-  echo -n "$info"
+  local    system_indicators="${load_average_indicator}${battery_indicator}"
+  local     shell_indicators="${exit_code_indicator}${job_pid_indicator}${job_status_indicator}"
+  local directory_indicators="${git_branch_indicator}${test_log_indicator}${todo_indicator}"
+
+  echo -n "${shell_indicators}${system_indicators}${directory_indicators}"
 }
 
 function git_status {
   # Current git branch.
   if [[ -d "$1/.git" ]]; then
-    local color=30
-    [[ -f "$1/.git/index.lock" ]] && color=31
-    echo -n "\[\033[1;${color}m\]g\[\033[1;30m\](\[\033[1;32m\]$(sed 's/.*\///' "$1/.git/HEAD" | head -c6)\[\033[1;30m\])"
+    sed 's/.*\///' "$1/.git/HEAD" | head -c6
   elif [[ ! -z "$1" ]]; then
     git_status "${1%/*}"
   fi
@@ -111,11 +113,7 @@ function set_ps1 {
   local width=${#right_minus_escapes}
   local position=$((COLUMNS - width))
 
-  if [[ -z "$PS1_RIGHT" ]]; then
-    export PS1="$PS1_LEFT"
-  else
-    export PS1="\[\033[${position}G$right_minus_escape_brackets\r\]$PS1_LEFT\[\033[0;0m\]"
-  fi
+  export PS1="\[\033[${position}G$right_minus_escape_brackets\r\]$PS1_LEFT"
 }
 
 export PROMPT_COMMAND=set_ps1
