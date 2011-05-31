@@ -24,9 +24,11 @@ function default_right_prompt {
   local exit_code=$1
   local job_pid=$2
 
-  # Load average. If it's above 4 we should know about it.
-  local load_average=$(awk '{print $1}' < /proc/loadavg)
-  ((${load_average%.*} >= 4)) && local load_average_indicator=" \[\033[1;31m\]L$load_average\[\033[0;0m\]"
+  # Load average. If it's above 2 we should know about it.
+  if [[ -f /proc/loadavg ]]; then
+    local load_average=$(awk '{print $1}' < /proc/loadavg)
+    ((${load_average%.*} >= 2)) && local load_average_indicator=" \[\033[1;31m\]L$load_average\[\033[0;0m\]"
+  fi
 
   # Shell stuff. Show the most recent background job PID if it's still running,
   # and show the most recent exit status if it wasn't 0. Also show the number
