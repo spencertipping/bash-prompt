@@ -14,7 +14,7 @@ function setup_left_and_right {
   local exit_code=$?
   local job_pid=$!
 
-  export PS1_LEFT='\[\033[1;32m\]\h\[\033[1;30m\]\W\[\033[0;0m\] '
+  export PS1_LEFT=''
   export PS1_RIGHT="$(default_right_prompt "$exit_code" "$job_pid")"
 }
 
@@ -52,11 +52,15 @@ function default_right_prompt {
     local battery_indicator=" $(meter 33 30 $current_capacity $amount_empty)"
   fi
 
+  local working_directory="${PWD//$HOME/~}"
+
+  local   context_indicators=" \[\033[1;30m\]${working_directory##*/}\[\033[1;32m\]$(hostname)\[\033[0;0m\]"
+
   local    system_indicators="${load_average_indicator}${battery_indicator}"
   local     shell_indicators="${exit_code_indicator}${job_pid_indicator}${job_status_indicator}"
   local directory_indicators="${git_branch_indicator}${test_log_indicator}${todo_indicator}"
 
-  echo -n "${shell_indicators}${system_indicators}${directory_indicators}"
+  echo -n "${shell_indicators}${system_indicators}${directory_indicators}${context_indicators}"
 }
 
 function git_status {
@@ -113,7 +117,7 @@ function set_ps1 {
   local right_minus_escapes="$(sed 's/\\\[[^]]*\\\]*//g' <<< "$PS1_RIGHT")"
   local right_minus_escape_brackets="$(sed 's/\\[][]//g' <<< "$PS1_RIGHT")"
   local width=${#right_minus_escapes}
-  local position=$((COLUMNS - width))
+  local position=$((COLUMNS - width + 1))
 
   export PS1="\[\033[${position}G$right_minus_escape_brackets\r\]$PS1_LEFT"
 }
