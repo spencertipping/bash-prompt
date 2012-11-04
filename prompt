@@ -60,9 +60,10 @@ function default_right_prompt {
 }
 
 function git_status {
-  # Current git branch.
+  # Current git directory and branch.
   if [[ -d "$1/.git" ]]; then
-    sed 's/.*\///' "$1/.git/HEAD" | head -c6
+    local name=${1/$HOME/\~}
+    echo -en "\[\033[1;30m\]${name##*/}\[\033[1;32m\]"; sed 's/.*\///' "$1/.git/HEAD" | head -c6
   elif [[ ! -z "$1" ]]; then
     git_status "${1%/*}"
   fi
