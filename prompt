@@ -43,7 +43,7 @@ function default_right_prompt {
   local git_branch="$(git_status $PWD)"
   [[ -z "$git_branch" ]] || local git_branch_indicator=" $git_branch"
   [[ -r .test-log ]]     && local   test_log_indicator=" $(meter 32 31 $(grep '^pass' .test-log | wc -l) $(grep '^fail' .test-log | wc -l))"
-  [[ -r .todo ]]         && local       todo_indicator=" \[\033[1;36m\]t$(wc -l < .todo)\[\033[0;0m\]"
+  [[ -r .todo ]]         && local       todo_indicator=" \[\033[1;36m\]t$(egrep -v '^\W*done\W|^\s*(#.*)?$' .todo | wc -l)\[\033[0;0m\]"
 
   if grep 'charging$' /proc/acpi/battery/BAT1/state >& /dev/null; then
     local     full_capacity="$(grep full /proc/acpi/battery/BAT1/info | awk '{print $4}')"
