@@ -45,11 +45,11 @@ function default_right_prompt {
   [[ -r .test-log ]]     && local   test_log_indicator=" $(meter 32 31 $(grep '^pass' .test-log | wc -l) $(grep '^fail' .test-log | wc -l))"
   [[ -r .todo ]]         && local       todo_indicator=" \[\033[1;36m\]t$(egrep -v '^\W*done\W|^\s*(#.*)?$' .todo | wc -l)\[\033[0;0m\]"
 
-  if grep 'charging$' /proc/acpi/battery/BAT1/state >& /dev/null; then
-    local     full_capacity="$(grep full /proc/acpi/battery/BAT1/info | awk '{print $4}')"
-    local  current_capacity="$(grep remaining /proc/acpi/battery/BAT1/state | awk '{print $3}')"
-    local      amount_empty=$((full_capacity - current_capacity))
-    local battery_indicator=" $(meter 33 30 $current_capacity $amount_empty)"
+  if local acpi_output=$(acpi 2>&1) &&
+     [[ "$acpi_output" =~ harging,\ ([0-9])[0-9]% ]]; then
+    local        tens_digit=${BASH_REMATCH[1]}
+    local      amount_empty=$((10 - tens_digit))
+    local battery_indicator=" $(meter 33 30 $tens_digit $amount_empty)"
   fi
 
   local    system_indicators="${load_average_indicator}${battery_indicator}"
@@ -60,10 +60,15 @@ function default_right_prompt {
 }
 
 function git_status {
-  # Current git directory and branch.
-  if [[ -d "$1/.git" ]]; then
+  if [[ -f "$1/HEAD" && -d "$1/objects" ]]; then
+    # Bare repository or .git directory; no branch info (just repo directory)
     local name=${1/$HOME/\~}
-    echo -en "\[\033[1;30m\]${name##*/}\[\033[1;32m\]"; sed 's/.*\///' "$1/.git/HEAD" | head -c6
+    echo -en "\[\033[1;30m\]${name##*/}\[\033[1;32m\]"
+  elif [[ -d "$1/.git" ]]; then
+    # Current git directory and branch.
+    local name=${1/$HOME/\~}
+    echo -en "\[\033[1;30m\]${name##*/}\[\033[1;32m\]"
+    sed 's/.*\///' "$1/.git/HEAD" | head -c6
   elif [[ ! -z "$1" ]]; then
     git_status "${1%/*}"
   fi
@@ -98,8 +103,9 @@ function meter {
       ((--scaled_v1))
     fi
 
-    local v1=$(head -c$scaled_v1 <<< '..........')
-    local v2=$(head -c$scaled_v2 <<< '..........')
+    local dots='..........'
+    local v1=${dots:0:$scaled_v1}
+    local v2=${dots:0:$scaled_v2}
     echo "\[\033[1;${color1}m\]$v1\[\033[1;${color2}m\]$v2\[\033[0;0m\]"
   fi
 }
@@ -119,4 +125,10 @@ function set_ps1 {
   export PS1="\[\033[${position}G$right_minus_escape_brackets\r\]$PS1_LEFT"
 }
 
-export PROMPT_COMMAND=set_ps1
+# There is a possibility that we've inherited PROMPT_COMMAND from a parent
+# shell. In that case, we'll already have set_ps1 in there, so we're all set
+# (adding it again would result in the prompt being computed twice, which is
+# inefficient).
+if [[ "$PROMPT_COMMAND" == "${PROMPT_COMMAND/set_ps1/}" ]]; then
+  export PROMPT_COMMAND="${PROMPT_COMMAND:-:}; set_ps1"
+fi
