@@ -129,6 +129,10 @@ function set_ps1 {
 # shell. In that case, we'll already have set_ps1 in there, so we're all set
 # (adding it again would result in the prompt being computed twice, which is
 # inefficient).
+function return_last_status {
+  return $?
+}
+
 if [[ "$PROMPT_COMMAND" == "${PROMPT_COMMAND/set_ps1/}" ]]; then
-  export PROMPT_COMMAND="${PROMPT_COMMAND:-:}; set_ps1"
+  export PROMPT_COMMAND="${PROMPT_COMMAND:-return_last_status}; set_ps1"
 fi
