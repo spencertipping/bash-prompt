@@ -46,8 +46,8 @@ function default_right_prompt {
   [[ -r .todo ]]         && local       todo_indicator=" \[\033[1;36m\]t$(egrep -v '^\W*done\W|^\s*(#.*)?$' .todo | wc -l)\[\033[0;0m\]"
 
   if local acpi_output=$(acpi 2>&1) &&
-     [[ "$acpi_output" =~ harging,\ ([0-9])[0-9]% ]]; then
-    local        tens_digit=${BASH_REMATCH[1]}
+     [[ "$acpi_output" =~ harging,\ ([0-9])?[0-9]% ]]; then
+    local        tens_digit=${BASH_REMATCH[1]:-0}
     local      amount_empty=$((10 - tens_digit))
     local battery_indicator=" $(meter 33 30 $tens_digit $amount_empty)"
   fi
@@ -125,14 +125,8 @@ function set_ps1 {
   export PS1="\[\033[${position}G$right_minus_escape_brackets\r\]$PS1_LEFT"
 }
 
-# There is a possibility that we've inherited PROMPT_COMMAND from a parent
-# shell. In that case, we'll already have set_ps1 in there, so we're all set
-# (adding it again would result in the prompt being computed twice, which is
-# inefficient).
-function return_last_status {
-  return $?
-}
-
+# NB: it's important that set_ps1 be the first thing in your PROMPT_COMMAND;
+# otherwise you'll lose the status indicator for exit code.
 if [[ "$PROMPT_COMMAND" == "${PROMPT_COMMAND/set_ps1/}" ]]; then
-  export PROMPT_COMMAND="${PROMPT_COMMAND:-return_last_status}; set_ps1"
+  export PROMPT_COMMAND="set_ps1;${PROMPT_COMMAND:-:}"
 fi
