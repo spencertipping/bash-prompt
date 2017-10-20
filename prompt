@@ -14,7 +14,7 @@ function setup_left_and_right {
   local exit_code=$?
   local job_pid=$!
 
-  export PS1_LEFT='\[\033[1;32m\]\h\[\033[1;30m\]\W\[\033[0;0m\] '
+  export PS1_LEFT='\[\033[0;32m\]\h\[\033[1;30m\]\W\[\033[0;0m\] '
   export PS1_RIGHT="$(default_right_prompt "$exit_code" "$job_pid")"
 
   if (( $UID == 0 )); then
